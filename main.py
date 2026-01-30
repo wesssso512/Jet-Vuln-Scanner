@@ -6,7 +6,7 @@ import port_scanner
 import web_scanner
 from urllib.parse import urlparse
 
-# --- UI Configuration (Dark Theme) ---
+# --- UI Configuration ---
 BG_COLOR = "#1e1e1e"
 FRAME_BG = "#252526"
 FG_COLOR = "#dcdcdc"
@@ -18,61 +18,62 @@ FONT_MAIN = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI", 10, "bold")
 FONT_CODE = ("Consolas", 10)
 
-# --- The Analyse Section ---
+# --- The Updated Knowledge Base (Includes Nmap Analysis) ---
 KNOWLEDGE_BASE = {
+    # Web Vulnerabilities
     "XSS": ("⚠️ Cross-Site Scripting (XSS) Detected",
-            "• Meaning: The application allows attackers to inject malicious scripts into web pages viewed by other users.\n"
-            "• Risk: Attackers can hijack user sessions, deface websites, or redirect users to malicious sites.\n"
-            "• Fix: Sanitize all user inputs and implement Content Security Policy (CSP)."),
+            "• Risk: Attackers can hijack user sessions or deface websites.\n"
+            "• Fix: Sanitize user inputs and implement Content Security Policy (CSP)."),
     
     "SQL Injection": ("⚠️ SQL Injection (SQLi) Detected",
-            "• Meaning: The application accepts malicious SQL statements that can manipulate the database.\n"
-            "• Risk: Attackers can access sensitive data, modify database records, or delete entire tables.\n"
-            "• Fix: Use Prepared Statements (Parameterized Queries) and avoid dynamic SQL generation."),
+            "• Risk: Attackers can access or delete the entire database.\n"
+            "• Fix: Use Parameterized Queries (Prepared Statements)."),
     
-    "Port 80": ("ℹ️ Port 80 (HTTP) is Open",
-            "• Meaning: Standard web traffic port is unencrypted.\n"
-            "• Risk: Data transmitted can be intercepted (Sniffing).\n"
-            "• Fix: Enforce HTTPS (Port 443) and implement HSTS to encrypt all traffic."),
+    "WordPress": ("ℹ️ WordPress CMS Detected",
+            "• Risk: Common target for automated attacks.\n"
+            "• Fix: Keep plugins updated and hide the login page."),
+
+    # Network / Nmap Analysis
+    "Apache": ("ℹ️ Apache Web Server Detected",
+            "• Advice: Ensure 'ServerSignature' is set to 'Off' and 'ServerTokens' to 'Prod' in configuration to hide version info."),
+    
+    "nginx": ("ℹ️ Nginx Web Server Detected",
+            "• Advice: Disable 'server_tokens' in nginx.conf to prevent version disclosure."),
+    
+    "OpenSSH": ("ℹ️ OpenSSH Service Detected",
+            "• Advice: Disable root login and use key-based authentication. Ensure the version is patched against latest CVEs."),
+    
+    "Windows": ("ℹ️ Windows OS Detected",
+            "• Advice: Ensure the server has the latest security patches and Windows Defender/Firewall is active."),
+            
+    "Port 80": ("⚠️ Port 80 (HTTP) is Open",
+            "• Risk: Unencrypted traffic.\n"
+            "• Fix: Redirect all traffic to HTTPS (Port 443)."),
     
     "Port 21": ("⚠️ Port 21 (FTP) is Open",
-            "• Meaning: File Transfer Protocol is active.\n"
-            "• Risk: FTP sends passwords in clear text. Attackers can easily steal credentials.\n"
-            "• Fix: Disable FTP and use SFTP (SSH File Transfer Protocol) instead."),
-           
-    "WordPress": ("ℹ️ WordPress CMS Detected",
-            "• Meaning: The target is running on WordPress content management system.\n"
-            "• Risk: Outdated plugins or themes are common attack vectors.\n"
-            "• Fix: Keep WordPress core, themes, and plugins updated. Hide login pages."),
-    
-    "Port 22": ("ℹ️ Port 22 (SSH) is Open",
-            "• Meaning: Secure Shell service is available for remote administration.\n"
-            "• Advice: Ensure root login is disabled and use key-based authentication instead of passwords.")
+            "• Risk: Passwords sent in clear text.\n"
+            "• Fix: Use SFTP instead."),
+            
+    "Port 3389": ("⚠️ Port 3389 (RDP) is Open",
+            "• Risk: High risk of brute-force attacks.\n"
+            "• Fix: Restrict access via VPN or IP whitelist.")
 }
 
 def run_scan_thread():
-    """Starts the scanning process."""
     if not any([var_socket.get(), var_nmap.get(), var_tech.get(), var_sqli.get(), var_xss.get(), var_dir.get()]):
         messagebox.showwarning("Selection Error", "Please select at least one scanning module!")
         return
-
-    # Disable Report and Hide Advice when starting
     btn_save.config(state=tk.DISABLED)
     btn_advice.pack_forget()
-    
     scan_thread = threading.Thread(target=perform_scan_logic)
     scan_thread.start()
 
 def perform_scan_logic():
-    """Main logic controller."""
     target = entry_target.get()
-    
     if not target:
         messagebox.showwarning("Input Error", "Please enter a valid Target IP or URL.")
-        btn_save.config(state=tk.NORMAL) # Re-enable if error occurred immediately (optional)
         return
     
-    # UI Preparation
     btn_scan.config(state=tk.DISABLED, text="Scanning...", bg="#3e3e42")
     progress_bar.start(10)
     text_area.config(state=tk.NORMAL)
@@ -96,7 +97,6 @@ def perform_scan_logic():
         scanner_net = port_scanner.PortScanner() if (var_socket.get() or var_nmap.get()) else None
         scanner_web = web_scanner.WebScanner() if (var_tech.get() or var_sqli.get() or var_xss.get() or var_dir.get()) else None
 
-        # --- MODULES ---
         if var_socket.get():
             log_msg(f"\n[+] Module: Basic Socket Scan...", "section")
             socket_result = scanner_net.scan_ports_socket(target_ip)
@@ -139,10 +139,8 @@ def perform_scan_logic():
         log_msg(f"\n[!] Critical Error: {str(e)}", "danger")
 
     log_msg(f"\n[✓] Selected Scans Completed.", "success")
-    
-    # Restore UI and Enable Post-Scan Buttons
     btn_scan.config(state=tk.NORMAL, text="Start Scan", bg=ACCENT_COLOR)
-    btn_save.config(state=tk.NORMAL) # <--- Enable Save button here
+    btn_save.config(state=tk.NORMAL)
     progress_bar.stop()
     text_area.config(state=tk.DISABLED)
     btn_advice.pack(pady=5)
@@ -154,14 +152,26 @@ def log_msg(message, tag="normal"):
     text_area.config(state=tk.DISABLED)
 
 def get_advice_content():
+    """Smart analysis of the log content."""
     logs = text_area.get(1.0, tk.END)
     advice_found = []
+    
+    # 1. Critical Vulns
     if "XSS" in logs and "[!!!]" in logs: advice_found.append(KNOWLEDGE_BASE["XSS"])
     if "SQL Injection" in logs and "[!!!]" in logs: advice_found.append(KNOWLEDGE_BASE["SQL Injection"])
-    if "Port 80 is OPEN" in logs: advice_found.append(KNOWLEDGE_BASE["Port 80"])
-    if "Port 21 is OPEN" in logs: advice_found.append(KNOWLEDGE_BASE["Port 21"])
-    if "Port 22 is OPEN" in logs: advice_found.append(KNOWLEDGE_BASE["Port 22"])
+    
+    # 2. Ports
+    if "Port 80" in logs and "open" in logs: advice_found.append(KNOWLEDGE_BASE["Port 80"])
+    if "Port 21" in logs and "open" in logs: advice_found.append(KNOWLEDGE_BASE["Port 21"])
+    if "3389" in logs and "open" in logs: advice_found.append(KNOWLEDGE_BASE["Port 3389"])
+    
+    # 3. Technologies (Nmap/Fingerprint results)
     if "WordPress" in logs: advice_found.append(KNOWLEDGE_BASE["WordPress"])
+    if "Apache" in logs: advice_found.append(KNOWLEDGE_BASE["Apache"])
+    if "nginx" in logs: advice_found.append(KNOWLEDGE_BASE["nginx"])
+    if "OpenSSH" in logs: advice_found.append(KNOWLEDGE_BASE["OpenSSH"])
+    if "Windows" in logs: advice_found.append(KNOWLEDGE_BASE["Windows"])
+    
     return advice_found
 
 def save_report():
@@ -211,7 +221,7 @@ def show_advice_window():
     txt_advice.tag_config("body", foreground="#ffffff")
     
     if not advice_list:
-        txt_advice.insert(tk.END, "✅ Great! No critical issues or recognizable patterns were found in this scan.\n\nKeep monitoring your targets!", "body")
+        txt_advice.insert(tk.END, "✅ Good Status!\n\nNo critical vulnerabilities or specific technologies requiring warnings were detected in this scan.", "body")
     else:
         for title, body in advice_list:
             txt_advice.insert(tk.END, f"{title}\n", "header")
@@ -293,11 +303,8 @@ btn_frame = tk.Frame(root, bg=BG_COLOR, pady=10)
 btn_frame.pack()
 btn_scan = tk.Button(btn_frame, text="Start Scan", bg=ACCENT_COLOR, fg="white", font=FONT_BOLD, width=15, relief="flat", command=run_scan_thread)
 btn_scan.pack(side=tk.LEFT, padx=10)
-
-# Disable Save Button Initially
 btn_save = tk.Button(btn_frame, text="Save Report", bg="#2d8a55", fg="white", font=FONT_BOLD, width=15, relief="flat", command=save_report, state=tk.DISABLED)
 btn_save.pack(side=tk.LEFT, padx=10)
-
 btn_exit = tk.Button(btn_frame, text="Exit", bg=DANGER_COLOR, fg="white", font=FONT_BOLD, width=10, relief="flat", command=root.quit)
 btn_exit.pack(side=tk.LEFT, padx=10)
 
