@@ -18,7 +18,7 @@ DANGER_COLOR = "#e51400"
 SUCCESS_COLOR = "#4bb543"
 ADVICE_COLOR = "#d2691e"
 
-# --- DEFINING ALL FONTS (Fixed Missing Definitions) ---
+# --- DEFINING ALL FONTS  ---
 FONT_MAIN = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI", 10, "bold")
 FONT_CODE = ("Consolas", 10)

@@ -1,0 +1,42 @@
+# ============================================================
+#  .gitignore — SVU Vulnerability Scanner
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# --- Virtual Environments ---
+venv/
+env/
+ENV/
+.env
+.venv
+
+# --- PyInstaller (Build & Distribution) ---
+build/
+dist/
+*.spec
+
+# --- IDE / Editor Files ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Scan Reports (generated at runtime) ---
+Report_*.txt
+reports/
+
+# --- Logs ---
+*.log
+
+# --- OS Files ---
+ehthumbs.db
+Desktop.ini
