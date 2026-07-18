@@ -2,10 +2,11 @@
 
 # 🛡️ Jet Vulnerability Scanner — V2
 
-**A small, modular desktop security tool for network & web vulnerability assessment.**
+**A modular desktop security tool for network & web vulnerability assessment.**
 
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-0078D6?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-14%20passing-4bb543?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 > ⚠️ **Educational & authorized use only.** Only scan systems you own or have explicit written permission to test.
@@ -17,12 +18,39 @@
 ## 📖 Overview
 
 Jet Vulnerability Scanner is a desktop app with a Tkinter GUI that runs several
-basic network- and web-level checks from one place. **V2** is a full rewrite of
-V1 focused on correctness, thread-safety, and a cleaner architecture.
+network- and web-level security checks from one place.
 
-The scanning modules are intentionally simple and educational. They are **not**
-a replacement for mature tools like Nmap, Nikto, sqlmap or OWASP ZAP, and they
-produce false positives and false negatives by design.
+**V2 is a full rewrite of V1.** The focus was correctness, thread-safety,
+security, and a clean layered architecture — not new features for their own
+sake. The scanning checks are intentionally simple and educational; they are
+**not** a replacement for mature tools like Nmap, Nikto, sqlmap, or OWASP ZAP,
+and they produce false positives and false negatives by design.
+
+---
+
+## 🧠 The core idea behind V2
+
+In V1, every scanner returned a **pre-formatted string**. The UI printed it, and
+the advisor tried to recover results by searching that printed text for
+keywords. That single design choice caused most of V1's bugs.
+
+In V2, every scanner returns **structured data** — `Finding` objects with a
+stable `key`, a `severity`, and details. The UI formats them for display, the
+advisor looks them up by `key`, and the report consumes the same data. Nothing
+scrapes the screen to recover what was found.
+
+```
+Target → validators.normalize_target() → (host, url)
+                                            │
+              ┌─────────────────────────────┴──────────────────────┐
+              ▼                                                      ▼
+      PortScanner (socket / nmap)                        WebScanner (http)
+              └──────────────► List[Finding] ◄──────────────────────┘
+                                    │
+                    ┌───────────────┼────────────────┐
+                    ▼               ▼                 ▼
+              advisor.advise   UI rendering    reporting.build_report
+```
 
 ---
 
@@ -31,21 +59,19 @@ produce false positives and false negatives by design.
 | Module | What it does |
 |---|---|
 | 🔌 **Socket Scan** | TCP-connect scan across common ports (21, 22, 80, 443, 3306, 8080) |
-| 🗺️ **Nmap Scan** | Optional wrapper around Nmap (`-Pn -F -sV`), invoked safely with no shell |
-| 🧬 **Tech Fingerprint** | Reads `Server` / `X-Powered-By` headers and detects WordPress / Joomla / Drupal |
+| 🗺️ **Nmap Scan** | Optional Nmap wrapper (`-Pn -F -sV`), invoked safely with no shell |
+| 🧬 **Tech Fingerprint** | Reads `Server` / `X-Powered-By` headers, detects WordPress / Joomla / Drupal |
 | 💉 **SQL Injection** | Error-based test that injects into each query parameter individually |
 | 🖥️ **XSS** | Reflected XSS check against discovered HTML forms |
-| 📂 **Directory Busting** | Requests a short list of common paths and reports 200 / 403 |
-| 🧭 **Security Advisor** | **Rule-based** table that maps findings → remediation advice (not AI/ML) |
+| 📂 **Directory Busting** | Requests common paths and reports `200` / `403` |
+| 🧭 **Security Advisor** | **Rule-based** table mapping findings → remediation advice (not AI/ML) |
 | 💾 **Report Export** | Writes scan logs + advisor output to a timestamped file in `reports/` |
 
 ---
 
 ## 🏗️ Architecture
 
-V2 separates responsibilities by layer. Scanners return **structured data**
-(`Finding` objects), and the UI, advisor and report all consume that same data —
-nothing scrapes the on-screen text box to recover results.
+V2 splits responsibilities by layer instead of cramming everything into one file.
 
 ```
 Jet-Vuln-Scanner/
@@ -59,26 +85,28 @@ Jet-Vuln-Scanner/
 │   ├── reporting.py         # report building + cross-platform file open
 │   └── ui.py                # Tkinter GUI (the only Tk-aware module)
 ├── tests/
-│   └── test_core.py         # unit tests for the non-GUI core
+│   └── test_core.py         # 14 unit tests for the non-GUI core
 ├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
 
-**Data flow:**
+---
 
-```
-Target → validators.normalize_target() → (host, url)
-                                            │
-              ┌─────────────────────────────┴───────────────────────┐
-              ▼                                                       ▼
-      PortScanner (socket / nmap)                        WebScanner (http)
-              └──────────────► List[Finding] ◄───────────────────────┘
-                                    │
-                    ┌───────────────┼────────────────┐
-                    ▼               ▼                 ▼
-              advisor.advise   ui rendering    reporting.build_report
-```
+## 🔧 What changed from V1 → V2
+
+| # | Area | V1 problem | V2 fix |
+|---|---|---|---|
+| 1 | **Structure** | `main.py` was a 441-line "god file" (UI + logic + reporting + knowledge base) driven by globals | Split into a `jetscanner/` package by layer; UI is a class, no globals |
+| 2 | **Thread-safety** | Worker thread updated Tkinter widgets directly (Tk is **not** thread-safe → intermittent freezes/crashes) | All UI updates marshalled to the main thread via `root.after(...)` |
+| 3 | **Target validation** | Stripped every `/` and rejected any URL with `?`, which made the **SQLi module unreachable** | Parse with `urlparse`, validate the host only, keep the full URL intact |
+| 4 | **Command safety** | Nmap run via `shell=True` with an interpolated string (command-injection surface, no timeout) | Argument **list** + `shell=False` + `subprocess.run(..., timeout=)` |
+| 5 | **Advisor** | Scraped the log text box for keywords; broke on casing (`OPEN` vs `open`) | Looks advice up by `Finding.key`; scanners & advisor share one vocabulary |
+| 6 | **Networking** | Bare `except:` everywhere; some requests had **no timeout** (could hang forever) | Shared `requests.Session`, timeout on every request, narrow exception handling |
+| 7 | **SQLi** | Appended the payload to the whole URL | Injects into each query parameter individually and rebuilds the URL correctly |
+| 8 | **Ignore file** | File was named `gitignore` (no dot) — git ignored nothing | Renamed to `.gitignore` |
+| 9 | **Reporting** | Saved to CWD; opened files Windows-only (`os.startfile`, `explorer`) | Saves to `reports/`; opens on Windows/macOS/Linux |
+| 10 | **Tests** | None | 14 unit tests covering validation, advisor, SQLi, nmap parsing, reporting |
 
 ---
 
@@ -86,13 +114,14 @@ Target → validators.normalize_target() → (host, url)
 
 ### Prerequisites
 - Python 3.9+
-- Tkinter (bundled with most Python installers; on Debian/Ubuntu: `sudo apt install python3-tk`)
+- Tkinter (bundled with most Python installers; Debian/Ubuntu: `sudo apt install python3-tk`)
 - [Nmap](https://nmap.org/download.html) — optional, only for the Nmap module
 
 ### Steps
 ```bash
 git clone https://github.com/wesssso512/Jet-Vuln-Scanner.git
 cd Jet-Vuln-Scanner
+git checkout V2
 pip install -r requirements.txt
 python main.py
 ```
@@ -104,11 +133,26 @@ python -m unittest discover -s tests -t .
 
 ---
 
+## 🧪 Safe practice targets
+
+Only scan systems you are authorized to test. These are **intentionally
+vulnerable** targets that explicitly permit scanning:
+
+- `http://testphp.vulnweb.com` — Acunetix test site (nginx / PHP)
+- `http://testasp.vulnweb.com` — Acunetix test site (IIS / ASP.NET)
+- `scanme.nmap.org` — Nmap's own authorized scan target
+- **DVWA** or **OWASP Juice Shop** — run locally and scan `localhost`
+
+> Tip: for the HTTP-based modules, type the full `http://` URL so the request
+> isn't blocked by an HTTPS redirect.
+
+---
+
 ## ⚠️ Known limitations
 
 - **SQLi** is error-based only; it won't catch blind/time-based injection.
 - **XSS** checks reflected payloads in forms only, with no DOM/context awareness.
-- **Directory busting** uses a tiny built-in wordlist.
+- **Directory busting** uses a small built-in wordlist.
 - These checks are for learning; verify anything important with dedicated tools.
 
 ---
