@@ -13,13 +13,12 @@ import datetime
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from . import advisor, reporting
-from .models import ModuleResult, Severity
-from .port_scanner import PortScanner
+from .engine import MODULES, run_scan
+from .models import ModuleResult, ScanReport, Severity
 from .validators import InvalidTarget, normalize_target
-from .web_scanner import WebScanner
 
 # --- Theme -----------------------------------------------------------------
 BG = "#1e1e1e"
@@ -42,15 +41,8 @@ _TAGS = {
     "normal": FG,
 }
 
-# Modules: key -> (checkbox label, needs_network, needs_web)
-_MODULES = [
-    ("socket", "Socket Scan (basic)"),
-    ("nmap", "Nmap Advanced Scan"),
-    ("tech", "Tech Fingerprint"),
-    ("sqli", "SQL Injection Scan"),
-    ("xss", "XSS Scan"),
-    ("dir", "Directory Busting"),
-]
+# Checkboxes mirror the engine's module registry: (key, label).
+_MODULES = [(spec.key, spec.label) for spec in MODULES.values()]
 
 
 class JetScannerApp:
@@ -60,6 +52,7 @@ class JetScannerApp:
             key: tk.BooleanVar(value=False) for key, _ in _MODULES
         }
         self.results: List[ModuleResult] = []
+        self.started_at: Optional[datetime.datetime] = None
         self._scanning = False
         self._build_ui()
 
@@ -164,13 +157,14 @@ class JetScannerApp:
     def start_scan(self) -> None:
         if self._scanning:
             return
-        selected = {k: v.get() for k, v in self.vars.items()}
-        if not any(selected.values()):
+        selected = [k for k, v in self.vars.items() if v.get()]
+        if not selected:
             messagebox.showwarning("Selection Error",
                                    "Select at least one module.", parent=self.root)
             return
+        target = self.entry.get()
         try:
-            host, url = normalize_target(self.entry.get())
+            host, url = normalize_target(target)
         except InvalidTarget as exc:
             messagebox.showerror("Invalid Target", str(exc), parent=self.root)
             return
@@ -191,39 +185,19 @@ class JetScannerApp:
         self._write("-" * 60)
 
         thread = threading.Thread(
-            target=self._worker, args=(host, url, selected), daemon=True)
+            target=self._worker, args=(target, selected), daemon=True)
         thread.start()
 
-    def _worker(self, host: str, url: str, selected: Dict[str, bool]) -> None:
+    def _worker(self, target: str, selected: List[str]) -> None:
         """Runs off the main thread. Touches NO widgets directly."""
-        net = PortScanner()
-        web = WebScanner()
-        steps = []
-        if selected["socket"]:
-            steps.append(("Socket Scan", lambda: net.scan_socket(host)))
-        if selected["nmap"]:
-            steps.append(("Nmap Scan", lambda: net.scan_nmap(host)))
-        if selected["tech"]:
-            steps.append(("Tech Fingerprint", lambda: web.fingerprint(url)))
-        if selected["sqli"]:
-            steps.append(("SQL Injection", lambda: web.check_sqli(url)))
-        if selected["xss"]:
-            steps.append(("XSS", lambda: web.check_xss(url)))
-        if selected["dir"]:
-            steps.append(("Directory Busting", lambda: web.scan_directories(url)))
-
-        collected: List[ModuleResult] = []
-        for label, func in steps:
-            self._ui(self._write, f"\n[+] Module: {label} ...", "section")
-            try:
-                result = func()
-            except Exception as exc:  # defensive: never kill the worker
-                result = ModuleResult(module=label, error=str(exc))
-                result.log(f"[!] Error: {exc}")
-            collected.append(result)
-            self._ui(self._render_result, result)
-
-        self._ui(self._finish, collected)
+        report = run_scan(
+            target,
+            selected,
+            on_module_start=lambda spec: self._ui(
+                self._write, f"\n[+] Module: {spec.label} ...", "section"),
+            on_result=lambda result: self._ui(self._render_result, result),
+        )
+        self._ui(self._finish, report)
 
     def _render_result(self, result: ModuleResult) -> None:
         if result.error and not result.findings:
@@ -236,8 +210,9 @@ class JetScannerApp:
             tag = "muted"
         self._write(result.text, tag)
 
-    def _finish(self, collected: List[ModuleResult]) -> None:
-        self.results = collected
+    def _finish(self, report: ScanReport) -> None:
+        self.results = report.results
+        self.started_at = report.started_at
         self.progress.stop()
         self.btn_scan.config(state=tk.NORMAL, text="Start Scan")
         self.btn_save.config(state=tk.NORMAL)
@@ -288,11 +263,11 @@ class JetScannerApp:
         if include is None:
             return
         advice = advisor.advise(self._all_findings()) if include else ()
-        started = self.results and datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S")
+        started = (self.started_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+                   if self.started_at else "")
         content = reporting.build_report(
             target=self.entry.get().strip(),
-            started_at=started or "",
+            started_at=started,
             modules=self.results,
             advice=advice,
         )
@@ -317,6 +292,7 @@ class JetScannerApp:
         self.log.delete("1.0", tk.END)
         self.log.config(state=tk.DISABLED)
         self.results = []
+        self.started_at = None
         self.btn_save.config(state=tk.DISABLED)
         self.btn_advice.config(state=tk.DISABLED)
 

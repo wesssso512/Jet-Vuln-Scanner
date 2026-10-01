@@ -1,0 +1,7 @@
+# Allow-list: only what the image needs goes into the build context, so
+# private docs (PROJECT_CONTEXT*.md), .git, venvs and reports never leak in.
+*
+!pyproject.toml
+!README.md
+!jetscanner/
+jetscanner/**/__pycache__

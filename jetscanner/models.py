@@ -8,6 +8,7 @@ the same data. Nothing has to scrape a text box to recover what was found.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
@@ -58,3 +59,24 @@ class ModuleResult:
     @property
     def text(self) -> str:
         return "\n".join(self.lines)
+
+
+@dataclass
+class ScanReport:
+    """A complete scan: the normalized target plus each module's result, in
+    run order. Timestamps are timezone-aware UTC."""
+
+    host: str
+    url: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    results: List[ModuleResult] = field(default_factory=list)
+
+    @property
+    def findings(self) -> List[Finding]:
+        """Every finding across all modules, worst first.
+
+        The sort is stable, so findings of equal severity keep module order.
+        """
+        found = [f for r in self.results for f in r.findings]
+        return sorted(found, key=lambda f: f.severity.rank, reverse=True)

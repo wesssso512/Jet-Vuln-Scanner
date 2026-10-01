@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+*.egg-info/
 
 # --- Virtual Environments ---
 venv/
@@ -40,3 +41,4 @@ reports/
 # --- OS Files ---
 ehthumbs.db
 Desktop.ini
+.claude/skills/example-skill/SKILL.md

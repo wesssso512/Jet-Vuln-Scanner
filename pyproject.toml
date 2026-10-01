@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jetscanner"
+dynamic = ["version"]
+description = "Network & web vulnerability scanner. Authorized use only."
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.28.0",
+    "beautifulsoup4>=4.11.0",
+]
+
+[project.scripts]
+jet = "jetscanner.cli:main"
+
+[tool.setuptools]
+packages = ["jetscanner"]
+
+[tool.setuptools.dynamic]
+version = { attr = "jetscanner.__version__" }

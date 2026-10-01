@@ -2,11 +2,11 @@
 
 # 🛡️ Jet Vulnerability Scanner — V2
 
-**A modular desktop security tool for network & web vulnerability assessment.**
+**A modular security tool for network & web vulnerability assessment — CLI, Python library, and desktop GUI.**
 
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-0078D6?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-14%20passing-4bb543?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-50%20passing-4bb543?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 > ⚠️ **Educational & authorized use only.** Only scan systems you own or have explicit written permission to test.
@@ -17,8 +17,10 @@
 
 ## 📖 Overview
 
-Jet Vulnerability Scanner is a desktop app with a Tkinter GUI that runs several
-network- and web-level security checks from one place.
+Jet Vulnerability Scanner runs several network- and web-level security checks
+from one place. The scanning engine is a headless Python library; on top of it
+sit the `jet` command-line tool (text, JSON, or SARIF output) and a Tkinter
+desktop GUI.
 
 **V2 is a full rewrite of V1.** The focus was correctness, thread-safety,
 security, and a clean layered architecture — not new features for their own
@@ -76,16 +78,19 @@ V2 splits responsibilities by layer instead of cramming everything into one file
 ```
 Jet-Vuln-Scanner/
 ├── main.py                  # thin entry point → launches the GUI
+├── pyproject.toml           # package metadata + the `jet` command
 ├── jetscanner/
-│   ├── models.py            # Finding / ModuleResult / Severity data classes
+│   ├── engine.py            # headless orchestration: run_scan() + module registry
+│   ├── export.py            # JSON + SARIF 2.1.0 output
+│   ├── cli.py               # `jet` command-line interface
+│   ├── models.py            # Finding / ModuleResult / ScanReport / Severity
 │   ├── validators.py        # target parsing, validation & normalization
 │   ├── port_scanner.py      # socket + optional nmap (shell-free)
 │   ├── web_scanner.py       # fingerprint, SQLi, XSS, dir busting
 │   ├── advisor.py           # rule-based knowledge base (key → advice)
-│   ├── reporting.py         # report building + cross-platform file open
+│   ├── reporting.py         # text report building + cross-platform file open
 │   └── ui.py                # Tkinter GUI (the only Tk-aware module)
-├── tests/
-│   └── test_core.py         # 14 unit tests for the non-GUI core
+├── tests/                   # 50 unit tests, no live network needed
 ├── requirements.txt
 ├── .gitignore
 └── README.md
@@ -125,6 +130,42 @@ git checkout V2
 pip install -r requirements.txt
 python main.py
 ```
+
+### Command line
+Install the package to get the `jet` command (or use `python -m jetscanner`
+without installing):
+```bash
+pip install -e .
+
+jet modules                                        # list modules
+jet scan example.com --modules tech,dir            # human-readable report
+jet scan example.com -m all -f json | jq .summary  # JSON on stdout
+jet scan example.com -m all -f sarif -o jet.sarif  # SARIF 2.1.0 file
+jet scan example.com -m all --fail-on high         # exit 1 on high/critical (CI)
+```
+Results go to stdout (or `--output`); progress and errors go to stderr.
+Exit codes: `0` scan completed · `1` a finding met `--fail-on` · `2` usage or
+I/O error · `130` interrupted.
+
+As a library:
+```python
+from jetscanner import run_scan, to_json
+
+report = run_scan("example.com", ["tech", "dir"])
+print(to_json(report))
+```
+
+### Docker
+The image bundles the engine, the `jet` CLI and Nmap, and runs as a non-root user:
+```bash
+docker build -t jetscanner .
+docker run --rm jetscanner modules
+docker run --rm jetscanner scan example.com -m all -f json > report.json
+```
+- Inside the container, `localhost` is the container itself. To scan something
+  running on your machine, use `host.docker.internal` instead.
+- To save a report, redirect stdout as above rather than mounting a volume —
+  the container's user is not root and may not be able to write to it.
 
 ### Running the tests
 ```bash
