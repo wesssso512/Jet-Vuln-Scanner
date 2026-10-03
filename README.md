@@ -147,6 +147,24 @@ Results go to stdout (or `--output`); progress and errors go to stderr.
 Exit codes: `0` scan completed · `1` a finding met `--fail-on` · `2` usage or
 I/O error · `130` interrupted.
 
+#### Cloud scans (`jet cloud`)
+Run the scan on the hosted platform instead of your machine: it checks that
+you own the site, keeps a history, and works the same way in CI.
+
+```bash
+export CAULK_API_KEY=ck_live_...          # dashboard → Settings → API keys
+export CAULK_API_URL=https://...          # the platform's API address
+
+jet cloud sites                                         # your sites
+jet cloud scan example.com --checks quick               # what any visitor can see
+jet cloud scan example.com -f sarif -o caulk.sarif --fail-on high
+```
+
+The key is read from the environment only, never from a flag, so it stays
+out of shell history. Output formats, `--fail-on` and exit codes match
+`jet scan`. See [docs/github-actions.md](docs/github-actions.md) for a
+ready-made GitHub Actions workflow that puts findings in the Security tab.
+
 As a library:
 ```python
 from jetscanner import run_scan, to_json

@@ -26,7 +26,7 @@ Library usage::
 Only scan systems you own or have explicit written permission to test.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 from .engine import MODULES, ModuleSpec, run_scan
 from .export import to_dict, to_json, to_sarif, to_sarif_json
