@@ -69,6 +69,46 @@ KNOWLEDGE_BASE: dict = {
         "- Risk: admin/backup/config paths may leak data or widen the attack "
         "surface.\n- Fix: restrict access, remove backups, require auth.",
     ),
+    "no_https": (
+        "Site served without HTTPS",
+        "- Risk: traffic (including passwords) can be read or altered in "
+        "transit.\n- Fix: install a TLS certificate and redirect all HTTP to "
+        "HTTPS.",
+    ),
+    "missing_hsts": (
+        "HSTS header missing",
+        "- Meaning: browsers aren't told to always use HTTPS for this site.\n"
+        "- Fix: add 'Strict-Transport-Security: max-age=31536000; "
+        "includeSubDomains'.",
+    ),
+    "missing_csp": (
+        "Content-Security-Policy missing",
+        "- Meaning: no policy limits where scripts/styles may load from.\n"
+        "- Fix: add a Content-Security-Policy header; start in report-only "
+        "mode to avoid breaking the site.",
+    ),
+    "missing_xcto": (
+        "X-Content-Type-Options missing",
+        "- Risk: browsers may guess (sniff) a file's type and run it as "
+        "something unintended.\n- Fix: add 'X-Content-Type-Options: nosniff'.",
+    ),
+    "missing_xfo": (
+        "Clickjacking protection missing",
+        "- Risk: the page can be framed on a hostile site to trick users "
+        "(clickjacking).\n- Fix: add 'X-Frame-Options: DENY' or a CSP "
+        "'frame-ancestors' directive.",
+    ),
+    "missing_referrer_policy": (
+        "Referrer-Policy missing",
+        "- Meaning: full URLs may leak to other sites visitors click through "
+        "to.\n- Fix: add 'Referrer-Policy: strict-origin-when-cross-origin'.",
+    ),
+    "insecure_cookie": (
+        "Cookie set without the Secure flag",
+        "- Risk: a cookie without 'Secure' can be sent over plain HTTP and "
+        "captured in transit.\n- Fix: add the Secure flag to cookies, and "
+        "HttpOnly as well for session cookies.",
+    ),
 }
 
 

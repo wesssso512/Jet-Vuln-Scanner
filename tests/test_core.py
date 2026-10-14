@@ -67,14 +67,15 @@ class TestSqliHelpers(unittest.TestCase):
         url = "http://x.com/p?id=1&q=2"
         parsed = urlparse(url)
         params = parse_qs(parsed.query, keep_blank_values=True)
-        out = WebScanner._inject_param(parsed, params, "id", "'")
+        out = WebScanner._inject(parsed, params, "id", "'")
         self.assertIn("id=1%27", out)   # payload URL-encoded onto id
         self.assertIn("q=2", out)       # other param untouched
 
     def test_match_sql_error(self):
+        from jetscanner.web_scanner import _match_sql_error
         body = "warning: mysql_fetch_array() ... you have an error in your sql syntax"
-        self.assertEqual(WebScanner._match_sql_error(body), "MySQL")
-        self.assertIsNone(WebScanner._match_sql_error("all good here"))
+        self.assertEqual(_match_sql_error(body), "MySQL")
+        self.assertIsNone(_match_sql_error("all good here"))
 
 
 class TestWebScannerFlow(unittest.TestCase):
@@ -92,7 +93,7 @@ class TestWebScannerFlow(unittest.TestCase):
         web = self._scanner_returning()
         res = web.check_sqli("http://x.com/page")
         self.assertEqual(res.findings, [])
-        self.assertIn("no query parameters", res.text.lower())
+        self.assertIn("no parameterized urls", res.text.lower())
 
     def test_sqli_detected(self):
         web = self._scanner_returning(

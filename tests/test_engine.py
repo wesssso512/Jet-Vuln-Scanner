@@ -50,7 +50,8 @@ class TestRegistry(unittest.TestCase):
     def test_public_module_keys(self):
         # These keys are a public contract (CLI --modules, API). Don't rename.
         self.assertEqual(list(engine.MODULES),
-                         ["socket", "nmap", "tech", "sqli", "xss", "dir"])
+                         ["socket", "nmap", "tech", "headers", "sqli", "xss",
+                          "dir"])
 
 
 class TestRunScan(unittest.TestCase):

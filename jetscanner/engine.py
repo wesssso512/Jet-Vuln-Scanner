@@ -43,6 +43,8 @@ MODULES: Dict[str, ModuleSpec] = {
                    lambda net, web, host, url: net.scan_nmap(host)),
         ModuleSpec("tech", "Tech Fingerprint",
                    lambda net, web, host, url: web.fingerprint(url)),
+        ModuleSpec("headers", "Security Headers",
+                   lambda net, web, host, url: web.check_headers(url)),
         ModuleSpec("sqli", "SQL Injection",
                    lambda net, web, host, url: web.check_sqli(url)),
         ModuleSpec("xss", "XSS",
